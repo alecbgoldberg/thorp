@@ -19,6 +19,12 @@ venv/
 .mypy_cache/
 .pytest_cache/
 .hypothesis/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local (non-example) runtime config may embed account-specific values
+config/recorder.toml
 
 # OS
 .DS_Store

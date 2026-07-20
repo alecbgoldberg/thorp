@@ -1,0 +1,28 @@
+# Recorder configuration (Doc 5). Copy to config/recorder.toml and edit —
+# the real file is gitignored because it may reference account-specific setup.
+
+[recorder]
+data_dir = "data/raw"
+# "demo" until the Kalshi account + Phase 0 sanity checks are done; then "prod"
+# for the real 14-day capture (demo pricing/liquidity is explicitly not
+# representative — Doc 1 §1.1 — so gate-counting capture must be prod).
+environment = "demo"
+snapshot_interval_s = 60
+discovery_interval_s = 300
+fsync_interval_s = 5
+
+[kalshi]
+# Sports series in scope (Doc 5 §1). Series tickers are [VERIFY] against the
+# live API — check `GET /series/<ticker>` returns 200 before trusting capture.
+series_tickers = ["KXMLBGAME", "KXNFLGAME"]
+
+# Credentials come from the environment, never from this file (Doc 8 §2):
+#   export THORP_KALSHI_API_KEY_ID=<key id from the Kalshi dashboard>
+#   export THORP_KALSHI_PRIVATE_KEY_PATH=~/path/to/kalshi-private-key.pem
+api_key_id_env = "THORP_KALSHI_API_KEY_ID"
+private_key_path_env = "THORP_KALSHI_PRIVATE_KEY_PATH"
+
+# Endpoint defaults live in code (Doc 1 §1.1); override here if they move, e.g.:
+# [kalshi.endpoints.prod]
+# rest = "https://api.kalshi.com/trade-api/v2"
+# ws = "wss://api.kalshi.com/trade-api/ws/v2"
