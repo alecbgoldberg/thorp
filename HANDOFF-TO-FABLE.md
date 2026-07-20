@@ -22,8 +22,9 @@ Paste this to Fable to kick off implementation. Fable has no memory of the plann
 2. Backtest harness + `BacktestVenue` + fair-value engine + Strategy 4.1 (Doc 3 §3.3-3.4, §4).
 3. `RiskEngine` + OMS (Doc 3 §3.5-3.6, Doc 4) — build this one yourself or under close, line-by-line review; don't hand the safety-critical path to a subagent without an adversarial review pass on the resulting code, mirroring what was done at the design level. Every control in Doc 4's tables needs its negative test (Doc 6 §2) before this is considered done.
 4. `ShadowVenue` (SIMULATION mode) — pay specific attention to the four fill-model fixes in Doc 3 §4 (latency modeling, print-allocation exclusivity, self-exclusion, the assumptions-vector tagging). These were the highest-severity findings from the architecture review; an implementation that skips them silently reintroduces the exact optimism bug that was caught on paper.
-5. Watchdog + Control CLI (Doc 3 §2, Doc 4 §8-9).
-6. Test suite alongside every component above, not after — Doc 6 specifies which tests are direct regressions for specific adversarial-review findings; those are not optional/deferred-to-later tests.
+5. Execution Analytics batch job (Doc 11 — markouts, pickoff/adverse-selection detection, entry-edge/calibration-error/realized-P&L decomposition) — build this **alongside** `ShadowVenue`, not after. It's what makes several Phase 1/2/3 gate criteria (Doc 2 §2) and Strategy 4.3's kill-if condition (Doc 1 §4.3) actually computable rather than aspirational, and it subsumes the sim-vs-live divergence report, so building it late means re-deriving that report separately later.
+6. Watchdog + Control CLI (Doc 3 §2, Doc 4 §8-9).
+7. Test suite alongside every component above, not after — Doc 6 specifies which tests are direct regressions for specific adversarial-review findings; those are not optional/deferred-to-later tests.
 
 ## Orchestration guidance for you (Fable)
 

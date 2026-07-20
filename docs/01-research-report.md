@@ -151,7 +151,7 @@ All four assume **Kalshi-only execution**; Polymarket and sportsbook prices are 
 
 **Falsifiable test:** for markets below a volume/open-interest threshold (defined in Doc 5's research access layer), measure realized spread capture vs. adverse-selection cost (price move against the fill in the following N minutes) from captured data, before any live capital is risked.
 
-**Kill-if:** adverse selection cost exceeds realized spread even in thin markets (i.e., "thin" doesn't actually mean "uninformed," it just means the same informed flow with less competition among MMs).
+**Kill-if:** adverse selection cost exceeds realized spread even in thin markets (i.e., "thin" doesn't actually mean "uninformed," it just means the same informed flow with less competition among MMs). This condition is made concretely computable, not just aspirational, by Doc 11's pickoff-rate and realized-spread-capture metrics.
 
 ### 4.4 [DEMOTED — monitor, don't trade] Cross-venue calibration arbitrage
 

@@ -198,6 +198,10 @@ NEW → ACKNOWLEDGED → (PARTIALLY_FILLED)*  → FILLED
 
 Mark-to-market and realized, tracked per contract / per correlated group / global. Reconciles against Kalshi's own reported position on every heartbeat; any divergence is a hard alert, not a soft warning (Doc 4).
 
+### 3.8a Execution Analytics (batch, offline — Doc 11)
+
+Not part of the live Engine process — a separate batch job (same "separate process for CPU/analysis-bound work" pattern as §5) reading the event log and Recorder data to compute markouts, pickoff/adverse-selection rates, and the entry-edge/calibration-error/realized-P&L decomposition per fill (Doc 11 §2-6). This subsumes and generalizes the CANARY sim-vs-live divergence report referenced in §4 below — both are the same `FillAnalytics` computation applied to different fill sources (shadow vs. live), not two separate pipelines.
+
 ### 3.8 Persistence & Telemetry
 
 Every tick, decision, order, fill, and rejection is written to an append-only local event log (same format used for BACKTEST replay input, so a captured CANARY session can be replayed deterministically — this is the regression backbone described in Doc 6). Mirrored to S3 on a short delay, same pipeline as the Recorder (Doc 5) for consistency.
