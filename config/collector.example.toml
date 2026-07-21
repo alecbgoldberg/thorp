@@ -1,0 +1,20 @@
+# Kalshi + Pinnacle time-series collector (Doc 14). Copy to config/collector.toml.
+# Reads Kalshi market data (unauthenticated) and Pinnacle's own JSON API.
+# No API-key budget — the only limit is our own rate limiting.
+
+[collector]
+data_dir = "data"
+kalshi_series = "KXMLBGAME"
+pinnacle_league = "246"          # MLB
+
+# Our own rate limiting (be a good citizen; also avoids IP blocks).
+pinnacle_min_interval_s = 1.0    # min seconds between Pinnacle requests
+sample_interval_s = 20           # snapshot both venues this often
+discover_interval_s = 300        # re-match the slate every 5 min
+matchups_ttl_s = 300             # refresh Pinnacle matchup list every 5 min
+analyze_interval_s = 600         # log per-game lead/lag every 10 min
+
+# Collect each game's series across its pregame window and through the game.
+pregame_hours = 6
+postgame_hours = 4
+max_games = 30                   # whole slate

@@ -47,25 +47,33 @@ def team_from_ticker(ticker: str) -> str | None:
     return canon(ticker.rsplit("-", 1)[-1])
 
 
-def orderbook_mid(payload: JsonDict) -> Decimal | None:
-    """YES mid (dollars) from a Kalshi order-book response, or None if one-sided.
+def orderbook_bbo(
+    payload: JsonDict,
+) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+    """(yes_bid, yes_ask, mid) in dollars from a Kalshi order-book response.
 
     yes best bid = highest resting buy-YES price; yes best ask = 100 - highest
-    resting buy-NO price (both in cents).
+    resting buy-NO price (both in cents). Any element may be None if that side
+    is empty.
     """
     book = payload.get("orderbook") or {}
     yes = book.get("yes") or []
     no = book.get("no") or []
     best_bid = max((int(p) for p, _ in yes), default=None)
     best_no = max((int(p) for p, _ in no), default=None)
-    best_ask = (100 - best_no) if best_no is not None else None
-    if best_bid is not None and best_ask is not None:
-        return (Decimal(best_bid) + Decimal(best_ask)) / 200
-    if best_bid is not None:
-        return Decimal(best_bid) / 100
-    if best_ask is not None:
-        return Decimal(best_ask) / 100
-    return None
+    bid = Decimal(best_bid) / 100 if best_bid is not None else None
+    ask = (Decimal(100 - best_no) / 100) if best_no is not None else None
+    mid: Decimal | None
+    if bid is not None and ask is not None:
+        mid = (bid + ask) / 2
+    else:
+        mid = bid if bid is not None else ask
+    return bid, ask, mid
+
+
+def orderbook_mid(payload: JsonDict) -> Decimal | None:
+    """YES mid (dollars), or None if the book is empty. See ``orderbook_bbo``."""
+    return orderbook_bbo(payload)[2]
 
 
 class KalshiMlbClient:
@@ -100,3 +108,10 @@ class KalshiMlbClient:
     async def team_prob(self, market_ticker: str) -> Decimal | None:
         payload = await self._rest.get_orderbook(market_ticker)
         return orderbook_mid(payload)
+
+    async def team_book(
+        self, market_ticker: str
+    ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+        """(yes_bid, yes_ask, mid) in dollars for one team's market."""
+        payload = await self._rest.get_orderbook(market_ticker)
+        return orderbook_bbo(payload)

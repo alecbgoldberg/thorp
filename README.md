@@ -23,8 +23,11 @@ not "the code works"; the adversarial-review risk/OMS fixes are load-bearing.
   interchangeable via a provider `Protocol` + factory.
 - `src/thorp/research/` — tested offline analysis (lead/lag); runnable studies
   live in the top-level `research/` dir.
-- `src/thorp/tracker/` — autonomous MLB moneyline tracker syncing Kalshi vs
-  Pinnacle (via OddsPapi) to detect lead/lag; `deploy/` runs it headless.
+- `src/thorp/odds/pinnacle.py` — our own Pinnacle feed via its backend JSON API
+  (no vendor API-key limit; own rate limiting). Doc 14.
+- `src/thorp/collector/` — autonomous Kalshi + Pinnacle time-series collector
+  (the primary data collector); `deploy/install-collector.sh` runs it headless.
+- `src/thorp/tracker/` — earlier OddsPapi lead/lag pilot (budget-limited).
 - `tests/` — pytest suite; `make check` is the local pre-deploy gate (Doc 6 §1)
 
 ## Credentials
@@ -79,6 +82,19 @@ deploy/install-tracker.sh status | logs | uninstall
 ```
 
 See `deploy/README.md` for the headless/sleep details.
+
+## Time-series collector (Kalshi + Pinnacle, primary)
+
+Collects dense time series for MLB on **both venues** — Kalshi order-book BBO and
+Pinnacle moneyline (de-vigged, via Pinnacle's own JSON API, no vendor limit) —
+into `data/timeseries/<venue>/date=…/game=…/` (S3/DuckDB-ready). This is the data
+foundation for the pregame market-making study (Doc 14).
+
+```sh
+uv run python -m thorp.collector --once        # one discover/sample/analyze round
+deploy/install-collector.sh install            # run headless (launchd + caffeinate)
+deploy/install-collector.sh status | logs | uninstall
+```
 
 ## Setup
 

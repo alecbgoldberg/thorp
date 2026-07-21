@@ -36,6 +36,11 @@ def build_provider(cfg: OddsConfig, api_key: str) -> OddsProvider:
         return OddsPapiProvider(
             api_key=api_key, base_url=cfg.base_url, odds_format=cfg.odds_format
         )
+    if cfg.provider == "pinnacle":
+        from thorp.odds.pinnacle import PinnacleScraper
+
+        # Pinnacle uses a public frontend key, not the operator's api_key.
+        return PinnacleScraper()
     raise ValueError(
         f"unknown odds provider {cfg.provider!r}; add it to build_provider "
         f"and PROVIDER_DEFAULTS (see src/thorp/odds/)"

@@ -42,3 +42,4 @@ config/tracker.toml
 
 # Claude Code local session config
 .claude/
+config/collector.toml
