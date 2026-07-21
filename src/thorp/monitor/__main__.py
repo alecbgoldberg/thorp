@@ -16,6 +16,7 @@ import webbrowser
 from datetime import UTC, datetime
 from pathlib import Path
 
+from thorp.common.logging_setup import configure_logging
 from thorp.monitor.demo import run_demo
 from thorp.monitor.server import MonitorSource, serve
 
@@ -36,9 +37,7 @@ def main() -> None:
     parser.add_argument("--open", action="store_true", help="open a browser tab")
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
+    configure_logging()
 
     session_dir = args.session_dir
     stop: threading.Event | None = None

@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from thorp.common.clock import CaptureClock
+from thorp.common.logging_setup import configure_logging
 from thorp.common.secrets import CredentialScope, load_env_file, resolve_credential
 from thorp.recorder.capture import KalshiCapture
 from thorp.recorder.config import RecorderConfig
@@ -63,10 +64,7 @@ def main() -> None:
     parser = argparse.ArgumentParser("thorp-recorder", description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("config/recorder.toml"))
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    configure_logging()
     if not args.config.exists():
         sys.exit(
             f"config not found: {args.config} — copy config/recorder.example.toml "

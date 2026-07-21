@@ -19,6 +19,10 @@ not "the code works"; the adversarial-review risk/OMS fixes are load-bearing.
   writers (Doc 3 §3.8–3.9), the regression/replay backbone
 - `src/thorp/monitor/` — read-only live dashboard (orders, fills, mark-to-mid
   P&L, group exposure). Separate process; observes files, never engine memory.
+- `src/thorp/odds/` — swappable odds-provider capture (Doc 13); OddsPapi today,
+  interchangeable via a provider `Protocol` + factory.
+- `src/thorp/research/` — tested offline analysis (lead/lag); runnable studies
+  live in the top-level `research/` dir.
 - `tests/` — pytest suite; `make check` is the local pre-deploy gate (Doc 6 §1)
 
 ## Credentials
@@ -37,7 +41,27 @@ uv run python -m thorp.monitor --session-dir data/live   # a real engine session
 
 The `--demo` session is a stand-in until the sim engine exists (Doc 7 Week 6);
 it writes the real telemetry schema, so the same dashboard lights up unchanged
-once the engine runs.
+once the engine runs. Logs go to `logs/thorp.log` (leveled) and fills to their
+own `logs/fills.log` blotter.
+
+## Odds capture (signal source, read-only)
+
+Sharp/consensus odds for the fair-value model and the lead/lag study (Doc 13).
+The provider is swappable; OddsPapi is wired up today. Put your key in
+`secrets/odds.env`, then:
+
+```sh
+cp config/odds.example.toml config/odds.toml   # then edit sports/bookmakers
+uv run python -m thorp.odds --config config/odds.toml
+```
+
+## Research studies
+
+```sh
+uv run python research/lead_lag/study.py   # does a sharp book lead Kalshi? (Doc 13 §6)
+```
+
+Runs on synthetic data until real capture exists; see `research/README.md`.
 
 ## Setup
 

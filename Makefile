@@ -4,10 +4,11 @@
 check: lint type test
 
 lint:
-	uv run ruff check src tests
+	uv run ruff check src tests research
 
 type:
 	uv run mypy
+	uv run mypy research/lead_lag/study.py
 
 test:
 	uv run pytest -q

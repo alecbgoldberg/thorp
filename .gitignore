@@ -4,13 +4,19 @@
 *.pem
 *.key
 kalshi_api_key*
-# Ignore everything in secrets/ except the committed template + README.
+# Ignore everything in secrets/ except the committed templates + README.
 secrets/*
 !secrets/kalshi.env.example
+!secrets/odds.env.example
 !secrets/README.md
 
-# Local data (raw capture before Parquet compaction, Doc 5 §3)
-data/raw/
+# Log output (trade log + separate fills log)
+logs/
+# Research study outputs (regenerable)
+research/**/output/
+
+# Local data — all generated (raw capture, demo + live engine sessions)
+data/
 *.db
 *.sqlite3
 
@@ -28,6 +34,7 @@ htmlcov/
 
 # Local (non-example) runtime config may embed account-specific values
 config/recorder.toml
+config/odds.toml
 
 # OS
 .DS_Store

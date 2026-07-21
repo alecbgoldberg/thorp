@@ -1,8 +1,21 @@
 # secrets/
 
-Everything in this directory is gitignored **except this README and
-`kalshi.env.example`**. Your real key IDs and `.pem` private keys live here and
-never reach git (verified by the `.gitignore` rules at the repo root).
+Everything in this directory is gitignored **except this README and the
+`*.env.example` templates**. Your real key IDs and `.pem` private keys live here
+and never reach git (verified by the `.gitignore` rules at the repo root).
+
+## Where do I put my API keys? (quick answer)
+
+| Key | File | Variable |
+|-----|------|----------|
+| Kalshi **read-only** key ID | `secrets/kalshi.env` | `THORP_KALSHI_READONLY_KEY_ID` |
+| Kalshi read-only private key | `secrets/kalshi-readonly.pem` | (the `.pem` file itself) |
+| Kalshi **full-access** (later) | `secrets/kalshi.env` + `kalshi-full.pem` | `THORP_KALSHI_FULL_*` |
+| **OddsPapi** API key | `secrets/odds.env` | `THORP_ODDSPAPI_API_KEY` |
+
+Both `.env` files already exist with labeled paste spots — just open and paste.
+Real environment variables override the files, so on a server you can set the
+vars in the environment and skip the files entirely.
 
 ## The two-key model (why there are two)
 
@@ -57,6 +70,15 @@ maps it to the right pair. A sim can't accidentally request the full key.
 Either a **path** to a `.pem` file (default), or the **PEM text pasted inline**
 (single line, with `\n` for newlines) if you'd rather keep it all in the env
 file. Paths are the tidy default; inline exists for containerized deploys.
+
+## OddsPapi (and future odds providers)
+
+`secrets/odds.env` holds odds-provider keys. Only OddsPapi is wired up today
+(free tier — get a key at https://oddspapi.io and paste it into
+`THORP_ODDSPAPI_API_KEY`). The provider is **swappable** (`src/thorp/odds/`):
+switching to a different vendor later is a config change plus adding that
+vendor's key here — no caller code changes. These are read-only *signal*
+sources; they are never on any order path (Kalshi-only execution stands).
 
 ## If a key is ever exposed
 

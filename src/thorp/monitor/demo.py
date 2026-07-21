@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
+from thorp.common.logging_setup import log_fill
 from thorp.telemetry.events import (
     EngineStatus,
     FillEvent,
@@ -157,6 +158,17 @@ class DemoEngine:
             fee = _fee(order.price, order.size)
             self._fees += fee
             self._apply_fill(order.market_key, order.side, order.price, order.size)
+            log_fill(
+                market_key=order.market_key,
+                side=order.side,
+                price=order.price,
+                size=order.size,
+                fee=fee,
+                liquidity="maker",
+                mode="SIMULATION",
+                order_id=order.order_id,
+                ts=now,
+            )
             self._log.append(
                 FillEvent(
                     seq=self._next_seq(),

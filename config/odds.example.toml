@@ -1,0 +1,22 @@
+# Odds capture configuration (Doc 13). Copy to config/odds.toml and edit.
+# The provider is swappable — change `provider` and the key in secrets/odds.env,
+# and (for a new vendor) add an implementation in src/thorp/odds/.
+
+[odds]
+provider = "oddspapi"          # current provider; free tier, no credit card
+bookmakers = ["pinnacle"]       # the sharp reference (Doc 13 §1). Add more slugs to compare.
+data_dir = "data/raw"
+
+# Sports to capture. These are the provider's own sport identifiers and are
+# [VERIFY] against `GET /sports` — check the real ids before trusting capture.
+sports = ["baseball_mlb"]
+
+# Polling cadence. OddsPapi free tier is 250 req/mo, so keep this modest for the
+# lead/lag study (Doc 13 §6) — a burst around a handful of games, not 24/7.
+poll_interval_s = 60
+fixture_lookahead_hours = 48
+odds_format = "decimal"
+
+# base_url / api_key_env default per-provider in code; override here if needed:
+# base_url = "https://api.oddspapi.io/v4"
+# api_key_env = "THORP_ODDSPAPI_API_KEY"
