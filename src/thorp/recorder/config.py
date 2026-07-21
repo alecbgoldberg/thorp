@@ -6,12 +6,14 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-# Doc 1 §1.1 endpoints. [VERIFY on first live connect] — override per-environment
-# in the TOML under [kalshi.endpoints.<env>] if these have moved.
+# Kalshi endpoints. The prod host is api.elections.kalshi.com (confirmed live
+# 2026-07-21; the older api.kalshi.com host no longer resolves). REST market data
+# is readable unauthenticated. [VERIFY the WS host on first live connect.]
+# Override per-environment in the TOML under [kalshi.endpoints.<env>] if needed.
 DEFAULT_ENDPOINTS: dict[str, dict[str, str]] = {
     "prod": {
-        "rest": "https://api.kalshi.com/trade-api/v2",
-        "ws": "wss://api.kalshi.com/trade-api/ws/v2",
+        "rest": "https://api.elections.kalshi.com/trade-api/v2",
+        "ws": "wss://api.elections.kalshi.com/trade-api/ws/v2",
     },
     "demo": {
         "rest": "https://demo-api.kalshi.co/trade-api/v2",

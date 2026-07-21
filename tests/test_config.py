@@ -56,12 +56,14 @@ ws = "wss://example.test/ws"
     assert cfg.series_tickers == ("KXNFLGAME", "KXNBA")
 
 
-def test_prod_defaults_match_doc1_endpoints(tmp_path: Path) -> None:
+def test_prod_defaults_use_elections_host(tmp_path: Path) -> None:
+    # api.elections.kalshi.com is the live host (confirmed 2026-07-21);
+    # the older api.kalshi.com no longer resolves.
     cfg = RecorderConfig.load(
         write(tmp_path, '[recorder]\nenvironment = "prod"\n[kalshi]\nseries_tickers = ["X"]\n')
     )
-    assert cfg.rest_url == "https://api.kalshi.com/trade-api/v2"
-    assert cfg.ws_url == "wss://api.kalshi.com/trade-api/ws/v2"
+    assert cfg.rest_url == "https://api.elections.kalshi.com/trade-api/v2"
+    assert cfg.ws_url == "wss://api.elections.kalshi.com/trade-api/ws/v2"
 
 
 def test_empty_series_is_an_error(tmp_path: Path) -> None:

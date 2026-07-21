@@ -23,6 +23,8 @@ not "the code works"; the adversarial-review risk/OMS fixes are load-bearing.
   interchangeable via a provider `Protocol` + factory.
 - `src/thorp/research/` — tested offline analysis (lead/lag); runnable studies
   live in the top-level `research/` dir.
+- `src/thorp/tracker/` — autonomous MLB moneyline tracker syncing Kalshi vs
+  Pinnacle (via OddsPapi) to detect lead/lag; `deploy/` runs it headless.
 - `tests/` — pytest suite; `make check` is the local pre-deploy gate (Doc 6 §1)
 
 ## Credentials
@@ -62,6 +64,21 @@ uv run python research/lead_lag/study.py   # does a sharp book lead Kalshi? (Doc
 ```
 
 Runs on synthetic data until real capture exists; see `research/README.md`.
+
+## MLB moneyline tracker (Kalshi vs Pinnacle lead/lag)
+
+Autonomously syncs each MLB game's win probability on Kalshi with Pinnacle (via
+OddsPapi), storing paired observations the lead/lag study consumes. It samples
+Kalshi densely (free) and Pinnacle sparingly — only within a few hours of first
+pitch, under a hard 250-call/month budget guard.
+
+```sh
+uv run python -m thorp.tracker --once      # one discover/sample/analyze round
+deploy/install-tracker.sh install          # run headless (launchd + caffeinate)
+deploy/install-tracker.sh status | logs | uninstall
+```
+
+See `deploy/README.md` for the headless/sleep details.
 
 ## Setup
 

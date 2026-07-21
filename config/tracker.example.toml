@@ -1,0 +1,30 @@
+# MLB moneyline lead/lag tracker (Doc 13). Copy to config/tracker.toml to edit.
+# Reads Kalshi market data (unauthenticated) and Pinnacle via OddsPapi.
+
+[tracker]
+data_dir = "data"
+kalshi_series = "KXMLBGAME"
+bookmaker = "pinnacle"
+
+# Kalshi is free — poll it densely. Pinnacle is capped by the monthly budget, so
+# poll it sparsely and only in the active window around first pitch (where the
+# line actually moves). With a 250/month OddsPapi limit, budget carefully:
+# each Pinnacle round costs one call PER tracked game.
+kalshi_interval_s = 30
+oddspapi_interval_s = 180       # 3 min, only within the active window
+active_window_hours = 3         # sample Pinnacle within this of first pitch
+analyze_interval_s = 300
+
+# Re-discovery: re-match Kalshi games often (free); refetch OddsPapi fixtures
+# rarely (costs budget), since a 48h fixtures window barely changes.
+discover_interval_s = 1800      # 30 min
+fixtures_ttl_s = 43200          # 12 h
+
+monthly_odds_budget = 250       # hard cap; tracker stops calling OddsPapi at this
+max_games = 1                   # focus budget on one game densely; raise to spend more
+
+# Lead/lag grid — coarse, since Pinnacle sampling is minute-scale under budget.
+analyze_step_s = 30
+analyze_max_lag_s = 1800
+
+# OddsPapi key comes from secrets/odds.env (THORP_ODDSPAPI_API_KEY).

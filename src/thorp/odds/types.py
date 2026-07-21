@@ -26,9 +26,14 @@ class Fixture(BaseRecord):
     provider: str
     fixture_id: str
     sport: str
-    start_time: datetime | None
-    home: str | None
-    away: str | None
+    tournament: str | None = None  # e.g. "MLB"
+    start_time: datetime | None = None
+    p1_abbr: str | None = None
+    p1_name: str | None = None
+    p2_abbr: str | None = None
+    p2_name: str | None = None
+    has_odds: bool = False
+    pinnacle_id: str | None = None
     raw: JsonDict | None = None
 
 

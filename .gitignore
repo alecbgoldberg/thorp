@@ -35,6 +35,7 @@ htmlcov/
 # Local (non-example) runtime config may embed account-specific values
 config/recorder.toml
 config/odds.toml
+config/tracker.toml
 
 # OS
 .DS_Store

@@ -7,9 +7,9 @@ provider = "oddspapi"          # current provider; free tier, no credit card
 bookmakers = ["pinnacle"]       # the sharp reference (Doc 13 §1). Add more slugs to compare.
 data_dir = "data/raw"
 
-# Sports to capture. These are the provider's own sport identifiers and are
-# [VERIFY] against `GET /sports` — check the real ids before trusting capture.
-sports = ["baseball_mlb"]
+# Sports to capture, as the provider's own sport ids (verified via GET /sports):
+# OddsPapi baseball = 13 (MLB is filtered by tournamentName == "MLB" downstream).
+sports = ["13"]
 
 # Polling cadence. OddsPapi free tier is 250 req/mo, so keep this modest for the
 # lead/lag study (Doc 13 §6) — a burst around a handful of games, not 24/7.
