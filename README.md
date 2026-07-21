@@ -15,7 +15,29 @@ not "the code works"; the adversarial-review risk/OMS fixes are load-bearing.
   schemas (Doc 5 §2)
 - `src/thorp/recorder/` — the Recorder process (Doc 5): Kalshi WS/REST capture
   to local append-only JSONL. Runs independently of everything else, by design.
+- `src/thorp/telemetry/` — the engine's event-log + status-file schema and
+  writers (Doc 3 §3.8–3.9), the regression/replay backbone
+- `src/thorp/monitor/` — read-only live dashboard (orders, fills, mark-to-mid
+  P&L, group exposure). Separate process; observes files, never engine memory.
 - `tests/` — pytest suite; `make check` is the local pre-deploy gate (Doc 6 §1)
+
+## Credentials
+
+Two Kalshi keys, never interchangeable (see `secrets/README.md`): a **read-only**
+key for the Recorder and every SIMULATION/BACKTEST path, and a **full-access**
+key used only for live trading. Paste yours into `secrets/kalshi.env`
+(gitignored) — the read-only key is all you need to start.
+
+## Monitoring dashboard
+
+```sh
+uv run python -m thorp.monitor --demo --open   # synthetic sim, opens a browser
+uv run python -m thorp.monitor --session-dir data/live   # a real engine session
+```
+
+The `--demo` session is a stand-in until the sim engine exists (Doc 7 Week 6);
+it writes the real telemetry schema, so the same dashboard lights up unchanged
+once the engine runs.
 
 ## Setup
 

@@ -21,11 +21,15 @@ class KalshiSigner:
         self._private_key = private_key
 
     @classmethod
-    def from_pem_file(cls, api_key_id: str, pem_path: Path) -> KalshiSigner:
-        key = serialization.load_pem_private_key(pem_path.read_bytes(), password=None)
+    def from_pem_bytes(cls, api_key_id: str, pem: bytes, source: str = "<inline>") -> KalshiSigner:
+        key = serialization.load_pem_private_key(pem, password=None)
         if not isinstance(key, rsa.RSAPrivateKey):
-            raise TypeError(f"expected an RSA private key in {pem_path}, got {type(key).__name__}")
+            raise TypeError(f"expected an RSA private key in {source}, got {type(key).__name__}")
         return cls(api_key_id, key)
+
+    @classmethod
+    def from_pem_file(cls, api_key_id: str, pem_path: Path) -> KalshiSigner:
+        return cls.from_pem_bytes(api_key_id, pem_path.read_bytes(), source=str(pem_path))
 
     def headers(self, method: str, path: str, timestamp_ms: int | None = None) -> dict[str, str]:
         # Uses real system time, not CaptureClock: the server validates this

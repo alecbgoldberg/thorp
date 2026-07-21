@@ -5,12 +5,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import os
 import signal
 import sys
 from pathlib import Path
 
 from thorp.common.clock import CaptureClock
+from thorp.common.secrets import CredentialScope, load_env_file, resolve_credential
 from thorp.recorder.capture import KalshiCapture
 from thorp.recorder.config import RecorderConfig
 from thorp.recorder.journal import JournalSet
@@ -21,11 +21,16 @@ logger = logging.getLogger("thorp.recorder")
 
 
 def _build_signer(cfg: RecorderConfig) -> KalshiSigner | None:
-    key_id = os.environ.get(cfg.api_key_id_env)
-    key_path = os.environ.get(cfg.private_key_path_env)
-    if not key_id or not key_path:
+    # Load secrets/kalshi.env if present (real env vars win). The Recorder only
+    # ever uses the READ-ONLY scope — it cannot place orders even if asked to.
+    loaded = load_env_file(cfg.secrets_file)
+    if loaded:
+        logger.info("loaded %d value(s) from %s", loaded, cfg.secrets_file)
+    cred = resolve_credential(CredentialScope.READ_ONLY)
+    if cred is None:
         return None
-    return KalshiSigner.from_pem_file(key_id, Path(key_path))
+    logger.info("using read-only Kalshi credential from %s", cred.source)
+    return KalshiSigner.from_pem_bytes(cred.api_key_id, cred.private_key_pem, cred.source)
 
 
 async def _amain(cfg: RecorderConfig) -> None:
@@ -34,11 +39,10 @@ async def _amain(cfg: RecorderConfig) -> None:
     signer = _build_signer(cfg)
     if signer is None:
         logger.warning(
-            "no Kalshi credentials found (env %s / %s) — running unauthenticated; "
-            "the WS connection will be rejected if the venue requires auth. "
-            "See docs/08-open-questions.md §2 for account setup.",
-            cfg.api_key_id_env,
-            cfg.private_key_path_env,
+            "no read-only Kalshi credential found (checked %s and the environment) "
+            "— running unauthenticated; the WS connection will be rejected if the "
+            "venue requires auth. See secrets/README.md for setup.",
+            cfg.secrets_file,
         )
     rest = KalshiRestClient(cfg.rest_url, signer)
     capture = KalshiCapture(cfg, clock, journals, rest, signer)

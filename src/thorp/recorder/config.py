@@ -30,8 +30,9 @@ class RecorderConfig:
     snapshot_interval_s: float = 60.0
     discovery_interval_s: float = 300.0
     fsync_interval_s: float = 5.0
-    api_key_id_env: str = "THORP_KALSHI_API_KEY_ID"
-    private_key_path_env: str = "THORP_KALSHI_PRIVATE_KEY_PATH"
+    # The Recorder is read-only market-data capture: it authenticates with the
+    # READ-ONLY Kalshi key (Doc 5, secrets/README.md), never a trade-capable one.
+    secrets_file: Path = Path("secrets/kalshi.env")
 
     @classmethod
     def load(cls, path: Path) -> RecorderConfig:
@@ -62,8 +63,5 @@ class RecorderConfig:
             snapshot_interval_s=float(rec.get("snapshot_interval_s", 60.0)),
             discovery_interval_s=float(rec.get("discovery_interval_s", 300.0)),
             fsync_interval_s=float(rec.get("fsync_interval_s", 5.0)),
-            api_key_id_env=str(kalshi.get("api_key_id_env", "THORP_KALSHI_API_KEY_ID")),
-            private_key_path_env=str(
-                kalshi.get("private_key_path_env", "THORP_KALSHI_PRIVATE_KEY_PATH")
-            ),
+            secrets_file=Path(rec.get("secrets_file", "secrets/kalshi.env")),
         )

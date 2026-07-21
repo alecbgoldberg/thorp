@@ -16,11 +16,10 @@ fsync_interval_s = 5
 # live API — check `GET /series/<ticker>` returns 200 before trusting capture.
 series_tickers = ["KXMLBGAME", "KXNFLGAME"]
 
-# Credentials come from the environment, never from this file (Doc 8 §2):
-#   export THORP_KALSHI_API_KEY_ID=<key id from the Kalshi dashboard>
-#   export THORP_KALSHI_PRIVATE_KEY_PATH=~/path/to/kalshi-private-key.pem
-api_key_id_env = "THORP_KALSHI_API_KEY_ID"
-private_key_path_env = "THORP_KALSHI_PRIVATE_KEY_PATH"
+# Credentials: the Recorder uses the READ-ONLY Kalshi key. Fill in
+# secrets/kalshi.env (gitignored) per secrets/README.md — no key material in
+# this file. Override the secrets file location under [recorder] if needed:
+# secrets_file = "secrets/kalshi.env"
 
 # Endpoint defaults live in code (Doc 1 §1.1); override here if they move, e.g.:
 # [kalshi.endpoints.prod]

@@ -1,10 +1,13 @@
 # Secrets — never commit these
 .env
 .env.*
-secrets/
 *.pem
 *.key
 kalshi_api_key*
+# Ignore everything in secrets/ except the committed template + README.
+secrets/*
+!secrets/kalshi.env.example
+!secrets/README.md
 
 # Local data (raw capture before Parquet compaction, Doc 5 §3)
 data/raw/

@@ -45,6 +45,11 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# dashboard.py is a single inline HTML/CSS/JS string literal; line length in the
+# embedded markup is not meaningful Python style.
+"src/thorp/monitor/dashboard.py" = ["E501"]
+
 [tool.coverage.run]
 branch = true
 source = ["thorp"]
