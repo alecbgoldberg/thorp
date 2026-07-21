@@ -54,6 +54,12 @@ def configure_logging(level: str | int = "INFO", log_dir: Path = Path("logs")) -
     main_file.setFormatter(formatter)
     root.addHandler(main_file)
 
+    # Quiet HTTP client request logging: httpx logs the full request URL at
+    # INFO, and API keys ride in query strings (e.g. OddsPapi ?apiKey=...), so
+    # leaving it on would write secrets into the log files.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     # Fills logger: its own file (fills only), but still propagates so fills are
     # also visible on the console and in thorp.log.
     fills = logging.getLogger(FILLS_LOGGER_NAME)

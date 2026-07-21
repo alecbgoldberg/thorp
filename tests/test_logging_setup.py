@@ -58,6 +58,14 @@ def test_fills_go_to_separate_file(tmp_path: Path) -> None:
     assert "FILL" in main
 
 
+def test_http_client_logging_is_quieted(tmp_path: Path) -> None:
+    # API keys ride in request URLs (OddsPapi ?apiKey=...); httpx/httpcore must
+    # not log them at INTO the log files.
+    configure_logging(log_dir=tmp_path)
+    assert logging.getLogger("httpx").level == logging.WARNING
+    assert logging.getLogger("httpcore").level == logging.WARNING
+
+
 def test_configure_is_idempotent(tmp_path: Path) -> None:
     from logging.handlers import RotatingFileHandler
 
