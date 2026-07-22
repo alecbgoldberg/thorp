@@ -14,9 +14,9 @@ from pathlib import Path
 
 from pydantic import TypeAdapter
 
-from thorp.collector.models import KalshiSnapshot, PinnacleSnapshot
+from thorp.collector.models import BookSnapshot, KalshiSnapshot, PinnacleSnapshot
 
-Snapshot = KalshiSnapshot | PinnacleSnapshot
+Snapshot = KalshiSnapshot | PinnacleSnapshot | BookSnapshot
 
 
 def _safe(game_key: str) -> str:

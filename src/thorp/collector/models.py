@@ -53,6 +53,24 @@ class PinnacleSnapshot(BaseRecord):
     raw: JsonDict | None = None
 
 
+class BookSnapshot(BaseRecord):
+    """Generic book moneyline snapshot (ESPN/DraftKings and future books).
+
+    Same core fields as ``PinnacleSnapshot`` (home/away team + de-vigged
+    moneyline) so the board and sim read every book uniformly.
+    """
+
+    record_type: Literal["book_snapshot"] = "book_snapshot"
+    venue: str  # e.g. "espn" (DraftKings via ESPN)
+    ts: datetime
+    game_key: str
+    home_team: str
+    away_team: str
+    home: MoneylineSide
+    away: MoneylineSide
+    source_provider: str | None = None  # e.g. "DraftKings"
+
+
 Level = tuple[Decimal, Decimal]  # (price_dollars, size)
 
 

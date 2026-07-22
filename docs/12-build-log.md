@@ -44,6 +44,14 @@ Last turn I declined to build a Pinnacle scraper (Doc 1 §1.3 / Doc 5 §8 ToS st
 
 **Polymarket US: dropped** (operator reversed — not trading it). Execution stays Kalshi-only.
 
+| # | Task | Notes | Outcome |
+|---|---|---|---|
+| B20 | ESPN free second book (`src/thorp/odds/espn.py`) | ESPN scoreboard API serves **DraftKings** moneylines free/unauth, whole slate in one request — DK pricing without scraping the Akamai wall. Collector now captures **3 sources** (Pinnacle + DK/ESPN + Kalshi) at 5s; board shows all. Verified live | Done |
+| B21 | Price-discovery taking sim (`src/thorp/sim/`) | Books-agree-then-one-moves detection → take on stale Kalshi via ladder fill + real fee; P&L as entry-edge + **Kalshi-convergence markout** (no settlement needed). `python -m thorp.sim [--greedy]`. Unit-tested on synthetic scenarios; runs on real data as it accumulates | Done |
+| B22 | Market research (Doc 16 §3) | **Pinnacle leads price discovery**, rec books (DK/FD) copy, Kalshi lags minutes → a *Pinnacle*-led move is the high-confidence signal. Cross-venue arb is established/automated and **fee-tier-decisive** (reinforces MM-program goal). **Polymarket US IS viable now** (CFTC, API open to US devs, 40+ states, waitlist removed May 2026) — operator dropped it but recorded as available | Documented |
+
+**Correction to earlier stance:** direct DK/FD/MGM scraping stays Akamai-blocked, but ESPN gives DK for free — so we have a real second book now without scraping. Polymarket US viability confirmed (operator was right it's live); left out of scope per operator, flagged for an explicit decision if reconsidered.
+
 ## Code-level decisions (beyond what Docs 3/5 fixed)
 
 - **Raw message retention.** Every normalized record carries the verbatim venue

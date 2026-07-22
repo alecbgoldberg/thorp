@@ -23,6 +23,7 @@ import httpx
 
 from thorp.collector.config import CollectorConfig
 from thorp.collector.models import (
+    BookSnapshot,
     CollectorGame,
     KalshiMarketBook,
     KalshiSnapshot,
@@ -31,7 +32,13 @@ from thorp.collector.models import (
 )
 from thorp.collector.snapshots import SnapshotStore
 from thorp.common.clock import CaptureClock
-from thorp.odds.pinnacle import PinnacleGame, PinnacleScraper, moneyline_from_rows
+from thorp.odds.espn import EspnGame, EspnScraper, et_date_str
+from thorp.odds.pinnacle import (
+    PinnacleGame,
+    PinnacleScraper,
+    american_to_decimal,
+    moneyline_from_rows,
+)
 from thorp.research.leadlag import devig_multiplicative
 from thorp.tracker.analyze import analyze_game
 from thorp.tracker.kalshi_mlb import KalshiMlbClient, market_quote
@@ -119,10 +126,12 @@ class Collector:
         snapshots: SnapshotStore,
         observations: ObservationStore,
         clock: CaptureClock,
+        espn: EspnScraper | None = None,
     ) -> None:
         self._cfg = cfg
         self._kalshi = kalshi
         self._pinnacle = pinnacle
+        self._espn = espn
         self._snap = snapshots
         self._obs = observations
         self._clock = clock
@@ -271,6 +280,51 @@ class Collector:
         await asyncio.gather(*(one(t) for t in tickers))
         return out
 
+    async def sample_espn(self) -> None:
+        if self._espn is None:
+            return
+        active = [link for link in self._links if self._active(link)]
+        if not active:
+            return
+        dates = sorted({et_date_str(link.start_time) for link in active if link.start_time})
+        by_teams: dict[frozenset[str], EspnGame] = {}
+        for date_str in dates:
+            try:
+                for g in await self._espn.scoreboard(date_str):
+                    h, a = canon(g.home_abbr), canon(g.away_abbr)
+                    if h and a and h != a:
+                        by_teams[frozenset({h, a})] = g
+            except (httpx.HTTPError, OSError) as exc:
+                logger.warning("espn scoreboard %s failed: %r", date_str, exc)
+        now = self._clock.now()
+        n = 0
+        for link in active:
+            eg = by_teams.get(frozenset(link.teams))
+            if eg is None:
+                continue
+            h, a = canon(eg.home_abbr), canon(eg.away_abbr)
+            dh, da = devig_multiplicative(
+                [
+                    float(Decimal(1) / american_to_decimal(eg.home_american)),
+                    float(Decimal(1) / american_to_decimal(eg.away_american)),
+                ]
+            )
+            self._snap.append(
+                "espn",
+                BookSnapshot(
+                    venue="espn",
+                    ts=now,
+                    game_key=link.game_key,
+                    home_team=str(h),
+                    away_team=str(a),
+                    home=_ml_side(eg.home_american, dh),
+                    away=_ml_side(eg.away_american, da),
+                    source_provider=eg.provider,
+                ),
+            )
+            n += 1
+        logger.info("espn: %d game snapshots (%s)", n, dates)
+
     def analyze(self) -> None:
         for link in self._links:
             obs = self._obs.load(link.game_key)
@@ -299,10 +353,14 @@ class Collector:
             )
         )
 
+    async def sample_all(self) -> None:
+        await self.sample_pinnacle()
+        await self.sample_espn()
+        await self.sample_kalshi()
+
     async def run(self) -> None:
         await self.discover()
-        await self.sample_pinnacle()
-        await self.sample_kalshi()
+        await self.sample_all()
         now0 = self._clock.now()
         last = dict.fromkeys(("sample", "discover", "analyze"), now0)
         while not self._stop.is_set():
@@ -316,8 +374,7 @@ class Collector:
                 await self.discover()
                 last["discover"] = now
             if (now - last["sample"]).total_seconds() >= self._cfg.sample_interval_s:
-                await self.sample_pinnacle()
-                await self.sample_kalshi()
+                await self.sample_all()
                 last["sample"] = now
             if (now - last["analyze"]).total_seconds() >= self._cfg.analyze_interval_s:
                 self.analyze()
@@ -329,6 +386,16 @@ def _side(ml: dict[str, Any], prob_devig: float) -> MoneylineSide:
         american=ml["american"],
         decimal_odds=ml["decimal"],
         prob_vig=ml["prob_vig"],
+        prob_devig=Decimal(str(round(prob_devig, 6))),
+    )
+
+
+def _ml_side(american: int, prob_devig: float) -> MoneylineSide:
+    dec = american_to_decimal(american)
+    return MoneylineSide(
+        american=american,
+        decimal_odds=dec,
+        prob_vig=Decimal(1) / dec,
         prob_devig=Decimal(str(round(prob_devig, 6))),
     )
 

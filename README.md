@@ -105,6 +105,17 @@ vs the Kalshi market + edge + ladder, sorted by largest edge (Doc 15).
 uv run python -m thorp.board --open
 ```
 
+## Price-discovery simulation
+
+Replays the collected time series and simulates the strategy: when the books
+agree and one moves sharply, take on Kalshi if it's stale; measures entry edge
+and Kalshi-convergence markout P&L (Doc 16).
+
+```sh
+uv run python -m thorp.sim            # discovery-gated
+uv run python -m thorp.sim --greedy   # take on any edge
+```
+
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/) (installs its own Python 3.12):

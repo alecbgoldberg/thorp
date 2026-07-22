@@ -17,6 +17,7 @@ from thorp.collector.config import CollectorConfig
 from thorp.collector.snapshots import SnapshotStore
 from thorp.common.clock import CaptureClock
 from thorp.common.logging_setup import configure_logging
+from thorp.odds.espn import EspnScraper
 from thorp.odds.pinnacle import PinnacleScraper
 from thorp.recorder.kalshi.rest import KalshiRestClient
 from thorp.tracker.kalshi_mlb import KalshiMlbClient
@@ -30,9 +31,10 @@ async def _amain(cfg: CollectorConfig, once: bool) -> None:
     rest = KalshiRestClient(cfg.kalshi_rest_url)  # market data is unauthenticated
     kalshi = KalshiMlbClient(rest, cfg.kalshi_series)
     pinnacle = PinnacleScraper(min_interval_s=cfg.pinnacle_min_interval_s)
+    espn = EspnScraper()
     snapshots = SnapshotStore(cfg.data_dir)
     observations = ObservationStore(cfg.data_dir)
-    collector = Collector(cfg, kalshi, pinnacle, snapshots, observations, clock)
+    collector = Collector(cfg, kalshi, pinnacle, snapshots, observations, clock, espn=espn)
 
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -41,14 +43,14 @@ async def _amain(cfg: CollectorConfig, once: bool) -> None:
     try:
         if once:
             await collector.discover()
-            await collector.sample_pinnacle()
-            await collector.sample_kalshi()
+            await collector.sample_all()
             collector.analyze()
         else:
             await collector.run()
     finally:
         await rest.aclose()
         await pinnacle.aclose()
+        await espn.aclose()
         logger.info("collector stopped")
 
 
