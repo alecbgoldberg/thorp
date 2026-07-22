@@ -105,7 +105,7 @@ vs the Kalshi market + edge + ladder, sorted by largest edge (Doc 15).
 uv run python -m thorp.board --open
 ```
 
-## Price-discovery simulation
+## Price-discovery simulation (offline, over captured data)
 
 Replays the collected time series and simulates the strategy: when the books
 agree and one moves sharply, take on Kalshi if it's stale; measures entry edge
@@ -114,6 +114,18 @@ and Kalshi-convergence markout P&L (Doc 16).
 ```sh
 uv run python -m thorp.sim            # discovery-gated
 uv run python -m thorp.sim --greedy   # take on any edge
+```
+
+## Live SIMULATION engine + unified UI
+
+The live engine samples 4 sources, blends fair value, runs the strategy through
+the **real RiskEngine + OMS**, fills against a **ShadowVenue** (in-memory, no
+network — see `CLAUDE.md` rule #1: sim can never place a real order), and writes
+telemetry. Run it alongside the unified UI (Board / Trading / Fills tabs):
+
+```sh
+uv run python -m thorp.engine     # live SIMULATION engine (no real orders)
+uv run python -m thorp.ui --open  # one UI: board + positions/PnL/fees + fills
 ```
 
 ## Setup

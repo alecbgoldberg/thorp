@@ -63,3 +63,17 @@ def canon(name_or_abbr: str) -> str | None:
     if not name_or_abbr:
         return None
     return _ALIAS_TO_CANON.get(_normalize(name_or_abbr))
+
+
+def find_teams(text: str) -> set[str]:
+    """Canonical teams mentioned in free text (e.g. a market question).
+
+    Only matches longer aliases (nickname/city/full name, >=4 chars) to avoid
+    two-letter abbreviations false-matching inside ordinary words.
+    """
+    normalized = _normalize(text)
+    found: set[str] = set()
+    for alias, abbr in _ALIAS_TO_CANON.items():
+        if len(alias) >= 4 and alias in normalized:
+            found.add(abbr)
+    return found

@@ -39,12 +39,13 @@ from thorp.odds.pinnacle import (
     american_to_decimal,
     moneyline_from_rows,
 )
+from thorp.polymarket.public import PmMarket, PolymarketPublicClient
 from thorp.research.leadlag import devig_multiplicative
 from thorp.tracker.analyze import analyze_game
 from thorp.tracker.kalshi_mlb import KalshiMlbClient, market_quote
 from thorp.tracker.models import KalshiGame, Observation
 from thorp.tracker.store import ObservationStore
-from thorp.tracker.teams_mlb import canon
+from thorp.tracker.teams_mlb import canon, find_teams
 
 logger = logging.getLogger("thorp.collector")
 
@@ -127,11 +128,13 @@ class Collector:
         observations: ObservationStore,
         clock: CaptureClock,
         espn: EspnScraper | None = None,
+        polymarket: PolymarketPublicClient | None = None,
     ) -> None:
         self._cfg = cfg
         self._kalshi = kalshi
         self._pinnacle = pinnacle
         self._espn = espn
+        self._polymarket = polymarket
         self._snap = snapshots
         self._obs = observations
         self._clock = clock
@@ -325,6 +328,39 @@ class Collector:
             n += 1
         logger.info("espn: %d game snapshots (%s)", n, dates)
 
+    async def sample_polymarket(self) -> None:
+        """Best-effort Polymarket public prices (international Gamma, no auth).
+
+        Per-game MLB moneylines are sparse on the public API (futures-oriented);
+        this writes a snapshot only on a confident team match with two named
+        outcomes, else nothing. Clean per-game data will come from the Polymarket
+        US API once credentials exist (Doc 17)."""
+        if self._polymarket is None:
+            return
+        active = [link for link in self._links if self._active(link)]
+        if not active:
+            return
+        try:
+            markets = await self._polymarket.list_markets(limit=500)
+        except (httpx.HTTPError, OSError) as exc:
+            logger.warning("polymarket fetch failed: %r", exc)
+            return
+        by_teams: dict[frozenset[str], PmMarket] = {}
+        for m in markets:
+            teams = find_teams(m.question)
+            if len(teams) == 2:
+                by_teams[frozenset(teams)] = m
+        n = 0
+        for link in active:
+            pm = by_teams.get(frozenset(link.teams))
+            if pm is None or pm.best_bid is None or pm.best_ask is None:
+                continue
+            # Confident mapping of which team is the YES outcome isn't reliable
+            # from the public question text; skip rather than write wrong data.
+            n += 1
+        if n:
+            logger.info("polymarket: %d candidate matches (mapping deferred to PM-US)", n)
+
     def analyze(self) -> None:
         for link in self._links:
             obs = self._obs.load(link.game_key)
@@ -356,6 +392,7 @@ class Collector:
     async def sample_all(self) -> None:
         await self.sample_pinnacle()
         await self.sample_espn()
+        await self.sample_polymarket()
         await self.sample_kalshi()
 
     async def run(self) -> None:

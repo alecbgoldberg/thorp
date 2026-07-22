@@ -65,6 +65,15 @@ Last turn I declined to build a Pinnacle scraper (Doc 1 §1.3 / Doc 5 §8 ToS st
 
 **Still gated (the real prerequisite for live trading):** the RiskEngine + OMS exist and are tested, but the **Trading Engine loop** (market data → fair value → strategy → risk → OMS → venue), the **live `ExecutionVenue`** for Kalshi/Polymarket, and the **Watchdog** (Doc 4 §8) are not built yet. No live orders until those exist, are tested, and an edge is validated.
 
+| # | Task | Notes | Outcome |
+|---|---|---|---|
+| B26 | **RULE #1: sim/prod separation** (`CLAUDE.md`) | Operator directive — sim must NEVER be able to place a real order, overrides everything. Verified at code level (no `KalshiLiveVenue` exists; sim uses `ShadowVenue` only, pure in-memory no network; read-only clients; `PolymarketUsClient.place_order` raises; mode stamped SIMULATION). Written as repo rule #1 + memory | Enforced |
+| B27 | **Live SIMULATION engine** (`src/thorp/engine/live_sim.py`) | The full path, no real orders: reuses collector for 4-source data → blended fair → edge strategy → **real RiskEngine.check → OMS → ShadowVenue** (in-memory ladder fill + real fee) → **PositionAccounting** → telemetry (event log + status). `PositionAccounting` (realized/unrealized/fees) + `ShadowVenue` tested. Ran live: took a real divergence (MIN 100@$0.45, fee $1.73 — honest fee-eats-thin-edge result) | Done |
+| B28 | **Unified UI** (`src/thorp/ui/`) | One page, three tabs: **Board** (`/api/board`, 4-source pricing + edge + ladder), **Trading** (`/api/state`, live sim mode/P&L/positions/open-orders/group-caps), **Fills**. `python -m thorp.ui --open`. Verified serving all tabs live | Done |
+| B29 | ESPN/DraftKings as 3rd live source + Polymarket 4th (public) | Collector+engine now capture Pinnacle + DraftKings(ESPN) + Kalshi live; Polymarket public wired defensively (per-game MLB sparse on public API — clean data via PM-US when creds exist) | Done (3 live sources + PM plumbed) |
+
+**How to watch it live:** `uv run python -m thorp.engine` + `uv run python -m thorp.ui --open` (both in the uv env automatically). All SIMULATION — `ShadowVenue` only, no live venue exists (CLAUDE.md rule #1).
+
 ## Code-level decisions (beyond what Docs 3/5 fixed)
 
 - **Raw message retention.** Every normalized record carries the verbatim venue
