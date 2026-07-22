@@ -37,6 +37,22 @@ With preprod credentials I can finish and integration-test the client
 (market-data reads first), verify the event matcher against **real MLB symbols**,
 and capture Polymarket prices into the collector alongside Kalshi + the books.
 
+## Two Polymarket APIs — public (sim) vs Polymarket US (execution)
+
+There are two distinct APIs, and we use them for two different things:
+
+- **Public international Gamma API** (`gamma-api.polymarket.com`, **no auth**):
+  read-only market data — best bid/ask, condition/token ids — verified live.
+  This is the **sim/reference** data source (`polymarket/public.py`). It's a
+  *different order book* from Polymarket US, so treat it as a reference price,
+  not the exact execution price.
+- **Polymarket US (QCX) API** (`api.prod.polymarketexchange.com/v1`, **Ed25519
+  auth + KYC**): the CFTC-regulated venue we'd actually **execute** on. This is
+  the one that needs onboarding (below) and stays gated on the risk engine.
+
+So the public API covers "give me Polymarket prices for the sim" with no
+credentials; the onboarding steps below are only for **live execution**.
+
 ## What's built now (no key needed)
 
 - **API client skeleton** (`src/thorp/polymarket/client.py`): base URL verified

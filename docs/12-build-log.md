@@ -58,6 +58,13 @@ Last turn I declined to build a Pinnacle scraper (Doc 1 §1.3 / Doc 5 §8 ToS st
 
 **Scope change recorded:** Polymarket US added as a second execution venue, overriding the Kalshi-only non-negotiable — operator's explicit, informed decision (Polymarket US is legal/CFTC/API-open). **Live order placement on either venue stays gated** on the Docs 3-4 risk-engine/OMS build + a validated edge; this turn built data + matching + onboarding only.
 
+| # | Task | Notes | Outcome |
+|---|---|---|---|
+| B24 | **RiskEngine + OMS** — the safety-critical core (`src/thorp/engine/`, Docs 3-4) | Full control catalog: per-order (price bounds/bands, max size, fat-finger), per-group (hard_cap + **fade→ModifiedIntent**, max open orders), portfolio gross, P&L (intraday halt, per-strategy, drawdown). **In-flight reservation ledger** reserved synchronously in `check()` before any await — the Opus 6x-race fix. OMS: revised state machine (**PENDING_CANCEL→FILLED legal**), fill dedup by id + cumulative reconcile, **reconciliation-break** raises, rate-limit token buckets, reservation release on terminal. **24 dedicated tests** incl. one negative test per control + the in-flight-race property test (group_exposure ≤ hard_cap after every check) | Done. NOT yet wired to a venue/engine-loop — that + watchdog is the next build |
+| B25 | Polymarket public data (`src/thorp/polymarket/public.py`) | International Gamma API (no auth) — best bid/ask for MLB, verified live. Sim/reference source, distinct from the Polymarket US execution client (gated). Tested | Done |
+
+**Still gated (the real prerequisite for live trading):** the RiskEngine + OMS exist and are tested, but the **Trading Engine loop** (market data → fair value → strategy → risk → OMS → venue), the **live `ExecutionVenue`** for Kalshi/Polymarket, and the **Watchdog** (Doc 4 §8) are not built yet. No live orders until those exist, are tested, and an edge is validated.
+
 ## Code-level decisions (beyond what Docs 3/5 fixed)
 
 - **Raw message retention.** Every normalized record carries the verbatim venue
