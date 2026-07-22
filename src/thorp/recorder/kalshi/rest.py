@@ -48,8 +48,8 @@ class KalshiRestClient:
             if not cursor:
                 return markets
 
-    async def get_orderbook(self, market_ticker: str) -> JsonDict:
-        return await self._get(f"/markets/{market_ticker}/orderbook")
+    async def get_orderbook(self, market_ticker: str, depth: int = 10) -> JsonDict:
+        return await self._get(f"/markets/{market_ticker}/orderbook", params={"depth": depth})
 
     async def aclose(self) -> None:
         await self._client.aclose()

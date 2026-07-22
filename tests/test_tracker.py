@@ -45,12 +45,44 @@ def test_parse_event_date_and_team() -> None:
     assert team_from_ticker("KXMLBGAME-26JUL231840KCDET-DET") == "DET"
 
 
-def test_orderbook_mid() -> None:
-    payload = {"orderbook": {"yes": [[40, 10], [41, 5]], "no": [[55, 3], [58, 2]]}}
-    # best yes bid 41c; best no 58c -> yes ask 42c; mid (41+42)/200 = 0.415
+def test_orderbook_mid_new_schema() -> None:
+    # orderbook_fp with dollar-string prices/sizes (elections host).
+    payload = {"orderbook_fp": {
+        "yes_dollars": [["0.40", "10"], ["0.41", "5"]],
+        "no_dollars": [["0.55", "3"], ["0.58", "2"]],
+    }}
+    # best yes bid 0.41; best no 0.58 -> yes ask 0.42; mid = 0.415
     assert orderbook_mid(payload) == Decimal("0.415")
-    assert orderbook_mid({"orderbook": {"yes": [], "no": []}}) is None
-    assert orderbook_mid({"orderbook": {"yes": [[30, 1]], "no": []}}) == Decimal("0.30")
+    assert orderbook_mid({"orderbook_fp": {"yes_dollars": [], "no_dollars": []}}) is None
+    assert orderbook_mid({"orderbook_fp": {"yes_dollars": [["0.30", "1"]]}}) == Decimal("0.30")
+
+
+def test_orderbook_levels_best_first() -> None:
+    from thorp.tracker.kalshi_mlb import orderbook_levels
+
+    payload = {"orderbook_fp": {
+        "yes_dollars": [["0.09", "50222"], ["0.11", "98441"], ["0.10", "60557"]],
+        "no_dollars": [["0.82", "25074"]],
+    }}
+    yes, no = orderbook_levels(payload, top=2)
+    assert yes == [(Decimal("0.11"), Decimal("98441")), (Decimal("0.10"), Decimal("60557"))]
+    assert no == [(Decimal("0.82"), Decimal("25074"))]
+
+
+def test_market_quote_dollar_fp_fields() -> None:
+    from thorp.tracker.kalshi_mlb import market_quote
+
+    q = market_quote({
+        "yes_bid_dollars": "0.14", "yes_ask_dollars": "0.15",
+        "last_price_dollars": "0.15", "volume_fp": "1861485.85",
+        "open_interest_fp": "1273123.57",
+    })
+    assert q.yes_bid == Decimal("0.14") and q.yes_ask == Decimal("0.15")
+    assert q.mid == Decimal("0.145") and q.last == Decimal("0.15")
+    assert q.volume == 1861485.85 and q.open_interest == 1273123.57
+    # untraded market -> all None
+    empty = market_quote({})
+    assert empty.mid is None and empty.volume is None
 
 
 class FakeRest:

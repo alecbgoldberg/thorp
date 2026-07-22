@@ -34,7 +34,7 @@ from thorp.common.clock import CaptureClock
 from thorp.odds.pinnacle import PinnacleGame, PinnacleScraper, moneyline_from_rows
 from thorp.research.leadlag import devig_multiplicative
 from thorp.tracker.analyze import analyze_game
-from thorp.tracker.kalshi_mlb import KalshiMlbClient
+from thorp.tracker.kalshi_mlb import KalshiMlbClient, market_quote
 from thorp.tracker.models import KalshiGame, Observation
 from thorp.tracker.store import ObservationStore
 from thorp.tracker.teams_mlb import canon
@@ -210,26 +210,42 @@ class Collector:
         logger.info("pinnacle: %d game snapshots", n)
 
     async def sample_kalshi(self) -> None:
-        for link in self._links:
-            if not self._active(link):
-                continue
+        active = [link for link in self._links if self._active(link)]
+        if not active:
+            return
+        # One bulk /markets request gives BBO + volume/OI for every market.
+        try:
+            markets = await self._kalshi.fetch_markets()
+        except (httpx.HTTPError, OSError) as exc:
+            logger.warning("kalshi markets fetch failed: %r", exc)
+            return
+        by_ticker = {str(m.get("ticker")): m for m in markets}
+
+        # Fetch order-book ladders for the active markets concurrently (bounded).
+        tickers = [t for link in active for t in link.kalshi_market_by_team.values()]
+        ladders = await self._fetch_ladders(tickers)
+
+        now = self._clock.now()
+        for link in active:
             books: list[KalshiMarketBook] = []
             ref_mid: Decimal | None = None
             for team, ticker in link.kalshi_market_by_team.items():
-                try:
-                    bid, ask, mid = await self._kalshi.team_book(ticker)
-                except (httpx.HTTPError, OSError) as exc:
-                    logger.warning("kalshi book failed for %s: %r", ticker, exc)
+                m = by_ticker.get(ticker)
+                if m is None:
                     continue
+                q = market_quote(m)
+                yes_levels, no_levels = ladders.get(ticker, ([], []))
                 books.append(
-                    KalshiMarketBook(team=team, ticker=ticker, yes_bid=bid, yes_ask=ask, mid=mid)
+                    KalshiMarketBook(
+                        team=team, ticker=ticker, yes_bid=q.yes_bid, yes_ask=q.yes_ask,
+                        mid=q.mid, last=q.last, volume=q.volume, open_interest=q.open_interest,
+                        yes_levels=yes_levels, no_levels=no_levels,
+                    )
                 )
                 if team == link.ref_team:
-                    ref_mid = mid
-                await asyncio.sleep(0.05)  # gentle on Kalshi
+                    ref_mid = q.mid
             if not books:
                 continue
-            now = self._clock.now()
             self._snap.append(
                 "kalshi",
                 KalshiSnapshot(
@@ -238,6 +254,22 @@ class Collector:
             )
             if ref_mid is not None:
                 self._record_obs(link, "kalshi", ref_mid)
+
+    async def _fetch_ladders(
+        self, tickers: list[str]
+    ) -> dict[str, tuple[list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]]:
+        sem = asyncio.Semaphore(8)
+        out: dict[str, tuple[list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]] = {}
+
+        async def one(ticker: str) -> None:
+            async with sem:
+                try:
+                    out[ticker] = await self._kalshi.orderbook(ticker, top=10)
+                except (httpx.HTTPError, OSError) as exc:
+                    logger.warning("kalshi ladder failed for %s: %r", ticker, exc)
+
+        await asyncio.gather(*(one(t) for t in tickers))
+        return out
 
     def analyze(self) -> None:
         for link in self._links:

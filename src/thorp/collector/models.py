@@ -53,6 +53,9 @@ class PinnacleSnapshot(BaseRecord):
     raw: JsonDict | None = None
 
 
+Level = tuple[Decimal, Decimal]  # (price_dollars, size)
+
+
 class KalshiMarketBook(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -61,6 +64,13 @@ class KalshiMarketBook(BaseModel):
     yes_bid: Decimal | None
     yes_ask: Decimal | None
     mid: Decimal | None
+    last: Decimal | None = None
+    volume: float | None = None
+    open_interest: float | None = None
+    # Top ladder levels (best first): resting buy-YES and buy-NO orders in
+    # dollars, for the ladder UI and fill simulation.
+    yes_levels: list[Level] = []
+    no_levels: list[Level] = []
 
 
 class KalshiSnapshot(BaseRecord):

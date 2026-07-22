@@ -70,15 +70,26 @@ the operator moves storage to S3.
 Deployed headless via `deploy/install-collector.sh` (launchd + caffeinate,
 KeepAlive) — supersedes the budget-limited OddsPapi tracker daemon.
 
-## 4. First live finding — Kalshi MLB liquidity is late
+## 4. Correction — Kalshi MLB is highly liquid (earlier "empty" was our bug)
 
-On 2026-07-21, **all of tonight's Kalshi MLB order books were empty (`{}`, no
-volume) ~2–3h before first pitch**, while Pinnacle was fully priced. This is a
-real market condition, not a capture bug (verified against raw books). It's a
-first-order input to the market-making thesis: if Kalshi liquidity only appears
-near/at game time, the pregame-MM window may be narrow, and the collector
-running continuously is exactly what will show when and how much liquidity
-materializes. Watch this before committing to the MM design.
+An earlier draft of this doc claimed Kalshi MLB books were empty pregame. **That
+was wrong — a schema bug on our side, caught by the operator.** The elections
+host uses a dollar/fixed-point schema (`orderbook_fp` with
+`yes_dollars`/`no_dollars`, market fields `yes_bid_dollars` / `volume_fp`), while
+our parser read the older cents-based `orderbook.yes`/`.no` keys that don't exist
+there — so every book decoded as empty. Fixed 2026-07-22.
+
+Reality: Kalshi MLB moneylines are **deeply liquid** — e.g. a single team market
+showed **~1.9M contracts of volume, ~1.3M open interest**, a 1¢-wide top of book
+($0.12/$0.13), and ladders with tens of thousands of contracts several cents
+deep. The bulk `/markets` response already carries BBO + volume + OI for every
+market, so the whole slate's pricing comes from one request; per-market
+`orderbook_fp` calls add the depth ladder. This liquidity is exactly what makes
+the pregame market-making thesis worth pursuing.
+
+**Capture windows.** Pinnacle's matchups endpoint drops games once they start, so
+the collector pairs the two venues during the **pregame** window (the MM focus);
+in-play pairing would need Pinnacle's live endpoint and is out of scope for now.
 
 ## 5. Forward plan (gated, not built yet)
 

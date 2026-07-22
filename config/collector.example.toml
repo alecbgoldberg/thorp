@@ -9,7 +9,7 @@ pinnacle_league = "246"          # MLB
 
 # Our own rate limiting (be a good citizen; also avoids IP blocks).
 pinnacle_min_interval_s = 1.0    # min seconds between Pinnacle requests
-sample_interval_s = 20           # snapshot both venues this often
+sample_interval_s = 5            # snapshot both venues every 5s
 discover_interval_s = 300        # re-match the slate every 5 min
 matchups_ttl_s = 300             # refresh Pinnacle matchup list every 5 min
 analyze_interval_s = 600         # log per-game lead/lag every 10 min
