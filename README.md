@@ -96,6 +96,15 @@ deploy/install-collector.sh install            # run headless (launchd + caffein
 deploy/install-collector.sh status | logs | uninstall
 ```
 
+## Aggregation board (UI)
+
+A live board over the collected time series — per game, each book's fair value
+vs the Kalshi market + edge + ladder, sorted by largest edge (Doc 15).
+
+```sh
+uv run python -m thorp.board --open
+```
+
 ## Setup
 
 Requires [uv](https://docs.astral.sh/uv/) (installs its own Python 3.12):

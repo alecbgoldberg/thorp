@@ -34,6 +34,16 @@ Last turn I declined to build a Pinnacle scraper (Doc 1 §1.3 / Doc 5 §8 ToS st
 
 **Deferred (operator-gated):** simulation of pregame MM/taking P&L priced off Pinnacle (Doc 3 §4) comes *after* the collected data supports a conclusion; storage format is already sim-ready.
 
+| # | Task | Notes | Outcome |
+|---|---|---|---|
+| B15 | **Kalshi schema fix** (critical, operator-caught) | Elections host uses dollar/fp schema (`orderbook_fp`/`yes_dollars`, `yes_bid_dollars`/`volume_fp`); our parser read old cents keys → decoded every book as empty. Rewrote `market_quote`/`orderbook_levels`; **Kalshi MLB is deeply liquid** (~1.9M vol, tight 1¢ books). Bulk `/markets` gives BBO for the whole slate in one request | Fixed, verified live; Doc 14 §4 corrected |
+| B16 | Collector 5s + ladders | Sample interval 20s→5s; KalshiSnapshot now carries BBO+last+volume+OI + top-10 order-book ladders (concurrent fetch). Redeployed | Done |
+| B17 | Aggregation board UI (`src/thorp/board/`) | Read-only live board over `data/timeseries/`: per game, book fair value vs Kalshi mid + edge + volume + ladder, sorted by |edge|. Multi-book by construction. Verified live (CIN-SEA: Pinnacle 0.582 vs Kalshi 0.575). `python -m thorp.board --open` | Done |
+| B18 | More books (FD/DK/MGM) — feasibility + design | Direct scraping **blocked**: DK 403 Akamai (+ C&D history), FD 400 geo-gated, MGM 403 bot HTML. Did NOT build fragile Akamai-bypass. Recommend The Odds API ($30/mo, us region) or a Playwright scraper; framework already multi-book. Doc 15 §2 | Reported; awaiting operator choice |
+| B19 | Execution microstructure design (Doc 15 §3) | Queue holding, stacking/laddering, join-vs-penny, inventory skew/fade, pickoff avoidance via lead/lag, taking-on-edge, cross-book confidence gating, MM-program posture. Design only — live engine gated on the Docs 3-4 risk/OMS build + a validated edge | Documented |
+
+**Polymarket US: dropped** (operator reversed — not trading it). Execution stays Kalshi-only.
+
 ## Code-level decisions (beyond what Docs 3/5 fixed)
 
 - **Raw message retention.** Every normalized record carries the verbatim venue
