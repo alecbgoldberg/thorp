@@ -12,6 +12,7 @@ and never reach git (verified by the `.gitignore` rules at the repo root).
 | Kalshi read-only private key | `secrets/kalshi-readonly.pem` | (the `.pem` file itself) |
 | Kalshi **full-access** (later) | `secrets/kalshi.env` + `kalshi-full.pem` | `THORP_KALSHI_FULL_*` |
 | **OddsPapi** API key | `secrets/odds.env` | `THORP_ODDSPAPI_API_KEY` |
+| **Polymarket US** (Ed25519) | `secrets/polymarket.env` + `polymarket-ed25519.pem` | `THORP_POLYMARKET_*` (see docs/17) |
 
 Both `.env` files already exist with labeled paste spots — just open and paste.
 Real environment variables override the files, so on a server you can set the

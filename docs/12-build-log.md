@@ -52,6 +52,12 @@ Last turn I declined to build a Pinnacle scraper (Doc 1 §1.3 / Doc 5 §8 ToS st
 
 **Correction to earlier stance:** direct DK/FD/MGM scraping stays Akamai-blocked, but ESPN gives DK for free — so we have a real second book now without scraping. Polymarket US viability confirmed (operator was right it's live); left out of scope per operator, flagged for an explicit decision if reconsidered.
 
+| # | Task | Notes | Outcome |
+|---|---|---|---|
+| B23 | Polymarket US as 2nd execution venue — foundation (Doc 17) | Operator reversed again (informed): add Polymarket US execution, books = pricing. Researched the QCX API (base `api.prod.polymarketexchange.com/v1`, Ed25519 private-key JWT, 3-min tokens, `x-participant-id`, symbols `tec-mlb-...-date-team`); live-probed (`/health` 200, `/markets` 401). Built: **event matcher** (`polymarket/matching.py`, Kalshi↔Polymarket same-contract by sport/date/outcome, tested), **client skeleton** (`polymarket/client.py`, Ed25519 JWT auth real, HTTP paths `[VERIFY]`, **order placement gated**), secrets slot, onboarding README (Doc 17 — steps for the operator to provide KYC'd API creds) | Foundation done; needs operator's API key + risk/OMS engine for live |
+
+**Scope change recorded:** Polymarket US added as a second execution venue, overriding the Kalshi-only non-negotiable — operator's explicit, informed decision (Polymarket US is legal/CFTC/API-open). **Live order placement on either venue stays gated** on the Docs 3-4 risk-engine/OMS build + a validated edge; this turn built data + matching + onboarding only.
+
 ## Code-level decisions (beyond what Docs 3/5 fixed)
 
 - **Raw message retention.** Every normalized record carries the verbatim venue

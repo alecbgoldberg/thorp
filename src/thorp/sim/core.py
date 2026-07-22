@@ -223,7 +223,12 @@ def _try_take(
 
 
 def _markout(
-    mids: list[tuple[float, float]], entry: float, fill: float, fee: float, size: int, cfg: SimConfig
+    mids: list[tuple[float, float]],
+    entry: float,
+    fill: float,
+    fee: float,
+    size: int,
+    cfg: SimConfig,
 ) -> float | None:
     target = entry + cfg.markout_horizon_s
     later = [m for (e, m) in mids if e >= target]

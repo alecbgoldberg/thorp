@@ -8,6 +8,7 @@ kalshi_api_key*
 secrets/*
 !secrets/kalshi.env.example
 !secrets/odds.env.example
+!secrets/polymarket.env.example
 !secrets/README.md
 
 # Log output (trade log + separate fills log)
