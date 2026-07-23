@@ -22,6 +22,7 @@ from thorp.collector.collector import Collector
 from thorp.common.clock import CaptureClock
 from thorp.common.logging_setup import log_fill
 from thorp.engine.accounting import PositionAccounting
+from thorp.engine.heartbeat import HeartbeatWriter
 from thorp.engine.limits import RiskLimits
 from thorp.engine.oms import OMS, RateLimited, ReconciliationBreak
 from thorp.engine.risk import RiskEngine
@@ -107,6 +108,9 @@ class LiveSimEngine:
         session = data_dir / "live"
         self._events = EventLog(session / "events.jsonl")
         self._status = StatusWriter(session / "status.json")
+        self._heartbeat = HeartbeatWriter(session / "heartbeat")
+        self._halt_flag = session / "halt.flag"
+        self._halt_flag.unlink(missing_ok=True)  # fresh session
         self._started = datetime.now(UTC)
         self._seq = 0
         self._intent_n = 0
@@ -122,8 +126,16 @@ class LiveSimEngine:
     def close(self) -> None:
         self._events.close()
 
+    def _check_halt(self) -> None:
+        """Manual-kill / watchdog dead-man flag (Doc 4 §8-9): halt = no new
+        position-adding orders (reducing still allowed via the RiskEngine)."""
+        if self._halt_flag.exists() and not self._state.halted:
+            self._state.halt("kill flag / watchdog dead-man")
+            logger.error("HALT FLAG detected — engine halted, no new position-adding orders")
+
     # -- one trading cycle over the freshest snapshots ---------------------
     def trade_cycle(self) -> None:
+        self._check_halt()
         games = read_latest(self._data_dir)
         mids: dict[str, Decimal | None] = {}
         for gs in games:
@@ -262,6 +274,7 @@ class LiveSimEngine:
         while not self._stop.is_set():
             await self._collector.sample_all()
             self.trade_cycle()
+            self._heartbeat.beat()  # last step of a completed loop (Doc 4 §8 gap-1)
             now = self._clock.now()
             if (now - last_discover).total_seconds() >= self._discover_interval_s:
                 await self._collector.discover()
