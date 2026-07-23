@@ -60,11 +60,18 @@ SIM_LIMITS = RiskLimits(
     per_strategy_max_loss=Decimal("100"),
 )
 
-# Signal on blended fair vs Kalshi *mid*; execute at the ask (crossing the
-# spread). Kept modest so genuine divergences trade and are visible on the UI —
-# fees are charged honestly, so marginal takes show their true (often thin) P&L.
-EDGE_THRESHOLD = Decimal("0.01")
+# A take must clear the Kalshi taker fee plus this margin — otherwise it's a
+# structurally-losing trade (the lesson from the first live run: a 1c edge does
+# not survive a ~1.7c fee). And we take a market at most once while positioned,
+# so a *static* divergence isn't re-hammered every cycle — you take to establish
+# the position on a fee-clearing edge, then hold (real edge comes from a move).
+EDGE_MARGIN = Decimal("0.003")
 STRATEGY = "pricedisc"
+
+
+def _fee_per_contract(price: Decimal) -> Decimal:
+    """Kalshi taker fee per contract at ``price`` (0.07 * P * (1-P))."""
+    return Decimal("0.07") * price * (Decimal(1) - price)
 
 
 def _dec(v: object) -> Decimal | None:
@@ -171,8 +178,11 @@ class LiveSimEngine:
             if not probs or ask is None or mid is None:
                 continue
             consensus = sum(probs, Decimal(0)) / len(probs)
-            # Signal on divergence from the Kalshi mid; execute at the ask.
-            if consensus - mid > EDGE_THRESHOLD:
+            # Fee-aware take, once per market while flat: the edge (vs mid) must
+            # clear the taker fee at the ask + a margin, and we don't add to an
+            # existing position (no re-hammering a static divergence).
+            required = _fee_per_contract(ask) + EDGE_MARGIN
+            if consensus - mid > required and self._state.market_net(ticker) == 0:
                 self._try_trade(group, ticker, "buy_yes", ask, consensus, market)
 
     def _try_trade(
@@ -269,6 +279,7 @@ class LiveSimEngine:
         self._status.write(status)
 
     async def run(self) -> None:
+        self._heartbeat.beat()  # beat immediately so the watchdog sees us alive
         await self._collector.discover()
         last_discover = self._clock.now()
         while not self._stop.is_set():

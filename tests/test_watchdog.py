@@ -28,18 +28,28 @@ async def test_sim_kill_writes_halt_flag_no_venue_call(tmp_path: Path) -> None:
     assert flag.exists() and "dead-man" in flag.read_text()
 
 
+async def test_watchdog_startup_grace_never_fires_before_engine_seen(tmp_path: Path) -> None:
+    # No heartbeat ever written (engine not up yet) -> watchdog must NOT fire.
+    flag = tmp_path / "halt.flag"
+    wd = Watchdog(HeartbeatReader(tmp_path / "hb"), SimKillAction(flag), stale_threshold_s=10)
+    assert await wd.check_once() is False
+    assert await wd.check_once() is False
+    assert not flag.exists()
+
+
 async def test_watchdog_fires_when_heartbeat_stale(tmp_path: Path) -> None:
     path = tmp_path / "hb"
-    HeartbeatWriter(path).beat(datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC))
+    t0 = datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC)
+    HeartbeatWriter(path).beat(t0)
     flag = tmp_path / "halt.flag"
-    # clock is 30s after the beat -> stale (> 10s)
-    now = datetime(2026, 7, 22, 20, 0, 30, tzinfo=UTC)
+    times = {"now": t0}  # first tick healthy -> arms the watchdog
     wd = Watchdog(HeartbeatReader(path), SimKillAction(flag),
-                  stale_threshold_s=10, clock=lambda: now)
-    assert await wd.check_once() is True
+                  stale_threshold_s=10, clock=lambda: times["now"])
+    assert await wd.check_once() is False  # healthy -> armed
+    times["now"] = t0 + timedelta(seconds=30)  # now stale
+    assert await wd.check_once() is True  # fires
     assert flag.exists()
-    # already fired -> does not fire again
-    assert await wd.check_once() is False
+    assert await wd.check_once() is False  # already fired -> no spam
 
 
 async def test_watchdog_does_not_fire_when_healthy(tmp_path: Path) -> None:
@@ -56,10 +66,13 @@ async def test_watchdog_does_not_fire_when_healthy(tmp_path: Path) -> None:
 async def test_watchdog_rearms_after_recovery(tmp_path: Path) -> None:
     path = tmp_path / "hb"
     flag = tmp_path / "halt.flag"
-    times = {"now": datetime(2026, 7, 22, 20, 0, 30, tzinfo=UTC)}
-    HeartbeatWriter(path).beat(datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC))
+    t0 = datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC)
+    times = {"now": t0}
+    HeartbeatWriter(path).beat(t0)
     wd = Watchdog(HeartbeatReader(path), SimKillAction(flag),
                   stale_threshold_s=10, clock=lambda: times["now"])
+    assert await wd.check_once() is False  # healthy -> arms
+    times["now"] = t0 + timedelta(seconds=30)
     assert await wd.check_once() is True  # stale -> fires
     # heartbeat recovers (fresh beat at the current clock)
     HeartbeatWriter(path).beat(times["now"])
@@ -72,8 +85,9 @@ async def test_watchdog_rearms_after_recovery(tmp_path: Path) -> None:
 
 async def test_watchdog_escalates_when_flatten_unconfirmed(tmp_path: Path) -> None:
     path = tmp_path / "hb"
-    HeartbeatWriter(path).beat(datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC))
-    now = datetime(2026, 7, 22, 20, 0, 30, tzinfo=UTC)
+    t0 = datetime(2026, 7, 22, 20, 0, 0, tzinfo=UTC)
+    HeartbeatWriter(path).beat(t0)
+    times = {"now": t0}
     calls = {"n": 0}
 
     class StubbornKill:
@@ -81,7 +95,9 @@ async def test_watchdog_escalates_when_flatten_unconfirmed(tmp_path: Path) -> No
             calls["n"] += 1
             return 3  # orders never confirm flat -> watchdog must escalate
 
-    wd = Watchdog(HeartbeatReader(path), StubbornKill(),
-                  stale_threshold_s=10, max_retries=3, retry_backoff_s=0, clock=lambda: now)
+    wd = Watchdog(HeartbeatReader(path), StubbornKill(), stale_threshold_s=10,
+                  max_retries=3, retry_backoff_s=0, clock=lambda: times["now"])
+    assert await wd.check_once() is False  # healthy -> arms
+    times["now"] = t0 + timedelta(seconds=30)
     await wd.check_once()
     assert calls["n"] == 3  # retried max_retries times, then escalated

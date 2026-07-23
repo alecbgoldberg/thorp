@@ -65,6 +65,7 @@ class Watchdog:
         self._backoff = retry_backoff_s
         self._clock = clock
         self._fired = False
+        self._seen_alive = False  # armed only after we've seen a healthy heartbeat
         self._stop = asyncio.Event()
 
     def stop(self) -> None:
@@ -74,8 +75,11 @@ class Watchdog:
         """One poll. Returns True if the kill fired this tick."""
         age = self._reader.age_s(self._clock())
         if age <= self._stale:
+            self._seen_alive = True  # engine is alive -> now armed
             self._fired = False  # healthy again -> re-arm
             return False
+        if not self._seen_alive:
+            return False  # startup grace: never fired before the engine came up
         if self._fired:
             return False  # already fired; don't spam
         self._fired = True
