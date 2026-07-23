@@ -41,8 +41,9 @@ from thorp.odds.pinnacle import (
 )
 from thorp.polymarket.public import PmMarket, PolymarketPublicClient
 from thorp.research.leadlag import devig_multiplicative
+from thorp.stream.kalshi_ws import KalshiBookStream
 from thorp.tracker.analyze import analyze_game
-from thorp.tracker.kalshi_mlb import KalshiMlbClient, market_quote
+from thorp.tracker.kalshi_mlb import KalshiMlbClient, games_from_markets, market_quote
 from thorp.tracker.models import KalshiGame, Observation
 from thorp.tracker.store import ObservationStore
 from thorp.tracker.teams_mlb import canon, find_teams
@@ -129,12 +130,15 @@ class Collector:
         clock: CaptureClock,
         espn: EspnScraper | None = None,
         polymarket: PolymarketPublicClient | None = None,
+        kalshi_stream: KalshiBookStream | None = None,
     ) -> None:
         self._cfg = cfg
         self._kalshi = kalshi
         self._pinnacle = pinnacle
         self._espn = espn
         self._polymarket = polymarket
+        self._kalshi_stream = kalshi_stream
+        self._kalshi_markets: dict[str, dict[str, Any]] = {}  # ticker -> market obj (REST)
         self._snap = snapshots
         self._obs = observations
         self._clock = clock
@@ -156,7 +160,9 @@ class Collector:
         return -self._cfg.postgame_hours <= h <= self._cfg.pregame_hours
 
     async def discover(self) -> None:
-        games = await self._kalshi.list_games()
+        markets = await self._kalshi.fetch_markets()  # REST: market list + volume/OI
+        self._kalshi_markets = {str(m.get("ticker")): m for m in markets}
+        games = games_from_markets(markets)
         now = self._clock.now()
         stale = (
             self._pin_games_at is None
@@ -169,6 +175,12 @@ class Collector:
         links.sort(key=lambda link: abs(self._hours_to_start(link)))
         self._links = links[: self._cfg.max_games]
         active = [link.game_key for link in self._links if self._active(link)]
+        if self._kalshi_stream is not None:
+            tickers = [
+                t for link in self._links if self._active(link)
+                for t in link.kalshi_market_by_team.values()
+            ]
+            self._kalshi_stream.subscribe(tickers)  # real-time WS book for active markets
         logger.info(
             "Kalshi %d games, Pinnacle %d matchups; matched %d, active now %d: %s",
             len(games),
@@ -225,17 +237,21 @@ class Collector:
         active = [link for link in self._links if self._active(link)]
         if not active:
             return
-        # One bulk /markets request gives BBO + volume/OI for every market.
-        try:
-            markets = await self._kalshi.fetch_markets()
-        except (httpx.HTTPError, OSError) as exc:
-            logger.warning("kalshi markets fetch failed: %r", exc)
-            return
-        by_ticker = {str(m.get("ticker")): m for m in markets}
-
-        # Fetch order-book ladders for the active markets concurrently (bounded).
-        tickers = [t for link in active for t in link.kalshi_market_by_team.values()]
-        ladders = await self._fetch_ladders(tickers)
+        # Real-time book from the WS stream if present; else REST snapshot.
+        by_ticker: dict[str, dict[str, Any]] = {}
+        Lvl = list[tuple[Decimal, Decimal]]
+        ladders: dict[str, tuple[Lvl, Lvl]] = {}
+        if self._kalshi_stream is None:
+            try:
+                markets = await self._kalshi.fetch_markets()
+            except (httpx.HTTPError, OSError) as exc:
+                logger.warning("kalshi markets fetch failed: %r", exc)
+                return
+            by_ticker = {str(m.get("ticker")): m for m in markets}
+            tickers = [t for link in active for t in link.kalshi_market_by_team.values()]
+            ladders = await self._fetch_ladders(tickers)
+        else:
+            by_ticker = self._kalshi_markets  # volume/OI/last from discovery (REST)
 
         now = self._clock.now()
         for link in active:
@@ -243,19 +259,25 @@ class Collector:
             ref_mid: Decimal | None = None
             for team, ticker in link.kalshi_market_by_team.items():
                 m = by_ticker.get(ticker)
-                if m is None:
-                    continue
-                q = market_quote(m)
-                yes_levels, no_levels = ladders.get(ticker, ([], []))
+                q = market_quote(m) if m else market_quote({})
+                if self._kalshi_stream is not None:
+                    b = self._kalshi_stream.book(ticker)
+                    if b is None:
+                        continue  # WS snapshot not arrived yet
+                    bid, ask, mid = b.bbo()
+                    yes_levels, no_levels = b.ladder(10)
+                else:
+                    bid, ask, mid = q.yes_bid, q.yes_ask, q.mid
+                    yes_levels, no_levels = ladders.get(ticker, ([], []))
                 books.append(
                     KalshiMarketBook(
-                        team=team, ticker=ticker, yes_bid=q.yes_bid, yes_ask=q.yes_ask,
-                        mid=q.mid, last=q.last, volume=q.volume, open_interest=q.open_interest,
+                        team=team, ticker=ticker, yes_bid=bid, yes_ask=ask,
+                        mid=mid, last=q.last, volume=q.volume, open_interest=q.open_interest,
                         yes_levels=yes_levels, no_levels=no_levels,
                     )
                 )
                 if team == link.ref_team:
-                    ref_mid = q.mid
+                    ref_mid = mid
             if not books:
                 continue
             self._snap.append(
