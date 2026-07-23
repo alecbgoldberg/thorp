@@ -173,6 +173,10 @@ class KalshiMlbClient:
         """All open markets for the series (one request; includes BBO/volume)."""
         return await self._rest.get_open_markets(self._series)
 
+    async def fetch_markets_for_series(self, series: str) -> list[JsonDict]:
+        """All open markets for an arbitrary series (e.g. KXMLBSPREAD/KXMLBTOTAL)."""
+        return await self._rest.get_open_markets(series)
+
     async def list_games(self) -> dict[str, KalshiGame]:
         return games_from_markets(await self.fetch_markets())
 

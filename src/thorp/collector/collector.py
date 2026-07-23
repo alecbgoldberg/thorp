@@ -27,10 +27,18 @@ from thorp.collector.models import (
     CollectorGame,
     KalshiMarketBook,
     KalshiSnapshot,
+    LinesSnapshot,
     MoneylineSide,
     PinnacleSnapshot,
 )
 from thorp.collector.snapshots import SnapshotStore
+from thorp.collector.spread_total import (
+    LinePair,
+    match_spreads,
+    match_totals,
+    spread_event_ticker,
+    total_event_ticker,
+)
 from thorp.common.clock import CaptureClock
 from thorp.odds.espn import EspnGame, EspnScraper, et_date_str
 from thorp.odds.pinnacle import (
@@ -38,6 +46,8 @@ from thorp.odds.pinnacle import (
     PinnacleScraper,
     american_to_decimal,
     moneyline_from_rows,
+    spreads_from_rows,
+    totals_from_rows,
 )
 from thorp.polymarket.public import PmMarket, PolymarketPublicClient
 from thorp.research.leadlag import devig_multiplicative
@@ -145,6 +155,7 @@ class Collector:
         self._links: list[CollectorGame] = []
         self._pin_games: list[PinnacleGame] = []
         self._pin_games_at: datetime | None = None
+        self._pinnacle_rows: list[dict[str, Any]] = []  # last straight-markets rows
         self._stop = asyncio.Event()
 
     def stop(self) -> None:
@@ -199,6 +210,7 @@ class Collector:
         except (httpx.HTTPError, OSError) as exc:
             logger.warning("pinnacle markets fetch failed: %r", exc)
             return
+        self._pinnacle_rows = rows  # reused by sample_spread_total (no extra fetch)
         now = self._clock.now()
         n = 0
         for link in active:
@@ -383,6 +395,46 @@ class Collector:
         if n:
             logger.info("polymarket: %d candidate matches (mapping deferred to PM-US)", n)
 
+    async def sample_spread_total(self) -> None:
+        """Capture matched Kalshi<->Pinnacle spread + total lines (line shifts).
+
+        Reuses the Pinnacle rows from sample_pinnacle (no extra Pinnacle call);
+        adds two Kalshi bulk /markets reads (spread + total series)."""
+        active = [link for link in self._links if self._active(link)]
+        if not active or not self._pinnacle_rows:
+            return
+        try:
+            spread_markets = await self._kalshi.fetch_markets_for_series("KXMLBSPREAD")
+            total_markets = await self._kalshi.fetch_markets_for_series("KXMLBTOTAL")
+        except (httpx.HTTPError, OSError) as exc:
+            logger.warning("kalshi spread/total fetch failed: %r", exc)
+            return
+        spreads_by_event: dict[str, list[dict[str, Any]]] = {}
+        totals_by_event: dict[str, list[dict[str, Any]]] = {}
+        for m in spread_markets:
+            spreads_by_event.setdefault(str(m.get("event_ticker")), []).append(m)
+        for m in total_markets:
+            totals_by_event.setdefault(str(m.get("event_ticker")), []).append(m)
+        now = self._clock.now()
+        n = 0
+        for link in active:
+            pin_sp = spreads_from_rows(self._pinnacle_rows, link.pinnacle_matchup_id)
+            pin_tot = totals_from_rows(self._pinnacle_rows, link.pinnacle_matchup_id)
+            home = link.teams[0] if link.pinnacle_ref_side == "home" else link.teams[1]
+            away = link.teams[1] if home == link.teams[0] else link.teams[0]
+            k_sp = spreads_by_event.get(spread_event_ticker(link.kalshi_event), [])
+            k_tot = totals_by_event.get(total_event_ticker(link.kalshi_event), [])
+            pairs = match_spreads(k_sp, pin_sp, home, away) + match_totals(k_tot, pin_tot)
+            if not pairs:
+                continue
+            self._snap.append("lines", LinesSnapshot(
+                ts=now, game_key=link.game_key,
+                pairs=[_line_pair_dict(p) for p in pairs],
+            ))
+            n += 1
+        if n:
+            logger.info("spread/total: %d games with matched lines", n)
+
     def analyze(self) -> None:
         for link in self._links:
             obs = self._obs.load(link.game_key)
@@ -413,6 +465,7 @@ class Collector:
 
     async def sample_all(self) -> None:
         await self.sample_pinnacle()
+        await self.sample_spread_total()
         await self.sample_espn()
         await self.sample_polymarket()
         await self.sample_kalshi()
@@ -447,6 +500,14 @@ def _side(ml: dict[str, Any], prob_devig: float) -> MoneylineSide:
         prob_vig=ml["prob_vig"],
         prob_devig=Decimal(str(round(prob_devig, 6))),
     )
+
+
+def _line_pair_dict(p: LinePair) -> dict[str, Any]:
+    return {
+        "kind": p.kind, "line": p.line, "selection": p.selection,
+        "kalshi_prob": float(p.kalshi_prob) if p.kalshi_prob is not None else None,
+        "pinnacle_prob": p.pinnacle_prob, "edge": p.edge, "ticker": p.ticker,
+    }
 
 
 def _ml_side(american: int, prob_devig: float) -> MoneylineSide:

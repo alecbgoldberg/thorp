@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+import random
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -99,14 +100,18 @@ class LiveSimEngine:
         collector: Collector,
         data_dir: Path,
         clock: CaptureClock,
-        sample_interval_s: float = 5.0,
+        sample_interval_s: float = 10.0,
         discover_interval_s: float = 300.0,
+        eval_interval_s: float = 2.0,
     ) -> None:
         self._collector = collector
         self._data_dir = data_dir
         self._clock = clock
-        self._sample_interval_s = sample_interval_s
+        # Sportsbook REST poll (Pinnacle/ESPN) — deliberately SLOW so we never
+        # look like an abusive client; jittered. Kalshi is WS (real-time, free).
+        self._book_poll_s = sample_interval_s
         self._discover_interval_s = discover_interval_s
+        self._eval_interval_s = eval_interval_s  # fast: read the WS book + trade
         self._state = RiskState()
         self._risk = RiskEngine(SIM_LIMITS)
         self._oms = OMS(self._state, SIM_LIMITS.max_orders_per_sec, SIM_LIMITS.max_cancels_per_sec)
@@ -278,20 +283,34 @@ class LiveSimEngine:
         )
         self._status.write(status)
 
+    async def _poll_books(self) -> None:
+        """Slow, jittered sportsbook REST poll (Pinnacle/ESPN/Polymarket)."""
+        await self._collector.sample_pinnacle()
+        await self._collector.sample_spread_total()
+        await self._collector.sample_espn()
+        await self._collector.sample_polymarket()
+
     async def run(self) -> None:
         self._heartbeat.beat()  # beat immediately so the watchdog sees us alive
         await self._collector.discover()
-        last_discover = self._clock.now()
+        await self._poll_books()
+        now0 = self._clock.now()
+        last = {"discover": now0, "books": now0}
         while not self._stop.is_set():
-            await self._collector.sample_all()
+            now = self._clock.now()
+            if (now - last["discover"]).total_seconds() >= self._discover_interval_s:
+                await self._collector.discover()
+                last["discover"] = now
+            # SLOW: sportsbook REST, jittered so polls aren't a perfect metronome.
+            if (now - last["books"]).total_seconds() >= self._book_poll_s:
+                await self._poll_books()
+                last["books"] = now + timedelta(seconds=random.uniform(0, self._book_poll_s * 0.3))
+            # FAST: Kalshi book is real-time over WS (no REST) — sample + trade.
+            await self._collector.sample_kalshi()
             self.trade_cycle()
             self._heartbeat.beat()  # last step of a completed loop (Doc 4 §8 gap-1)
-            now = self._clock.now()
-            if (now - last_discover).total_seconds() >= self._discover_interval_s:
-                await self._collector.discover()
-                last_discover = now
             try:
-                await asyncio.wait_for(self._stop.wait(), timeout=self._sample_interval_s)
+                await asyncio.wait_for(self._stop.wait(), timeout=self._eval_interval_s)
                 break
             except TimeoutError:
                 pass

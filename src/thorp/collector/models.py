@@ -97,3 +97,13 @@ class KalshiSnapshot(BaseRecord):
     game_key: str
     event_ticker: str
     markets: list[KalshiMarketBook]
+
+
+class LinesSnapshot(BaseRecord):
+    """Matched Kalshi<->Pinnacle spread/total lines at an instant (Doc: line
+    shifts). Each pair: kind, line, selection, kalshi_prob, pinnacle_prob, edge."""
+
+    record_type: Literal["lines_snapshot"] = "lines_snapshot"
+    ts: datetime
+    game_key: str
+    pairs: list[JsonDict]

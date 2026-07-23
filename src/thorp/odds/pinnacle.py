@@ -241,3 +241,60 @@ def _max_stake(row: JsonDict) -> int | None:
         if lim.get("type") == "maxRiskStake":
             return int(lim.get("amount", 0))
     return None
+
+
+def _devig_two(a_american: Any, b_american: Any) -> tuple[float, float] | None:
+    from thorp.research.leadlag import devig_multiplicative
+
+    if a_american is None or b_american is None:
+        return None
+    da, db = american_to_decimal(a_american), american_to_decimal(b_american)
+    if da <= 1 or db <= 1:
+        return None
+    out = devig_multiplicative([float(1 / da), float(1 / db)])
+    return out[0], out[1]
+
+
+def spreads_from_rows(rows: list[JsonDict], matchup_id: int) -> dict[tuple[str, float], float]:
+    """Full-game spread de-vigged probabilities keyed by (side, points).
+
+    e.g. ``("away", -2.5) -> 0.62`` = P(away covers -2.5) = P(away wins by >2.5).
+    Kalshi "T wins by over L" matches ``(T_side, -L)``.
+    """
+    out: dict[tuple[str, float], float] = {}
+    for row in rows:
+        if row.get("matchupId") != matchup_id or row.get("type") != "spread":
+            continue
+        if row.get("period") != 0:
+            continue
+        by = {p.get("designation"): p for p in row.get("prices") or []}
+        home, away = by.get("home"), by.get("away")
+        if not home or not away:
+            continue
+        dv = _devig_two(home.get("price"), away.get("price"))
+        if dv is None:
+            continue
+        if home.get("points") is not None:
+            out[("home", float(home["points"]))] = round(dv[0], 6)
+        if away.get("points") is not None:
+            out[("away", float(away["points"]))] = round(dv[1], 6)
+    return out
+
+
+def totals_from_rows(rows: list[JsonDict], matchup_id: int) -> dict[float, tuple[float, float]]:
+    """Full-game totals keyed by line -> (P(over), P(under)), de-vigged."""
+    out: dict[float, tuple[float, float]] = {}
+    for row in rows:
+        if row.get("matchupId") != matchup_id or row.get("type") != "total":
+            continue
+        if row.get("period") != 0:
+            continue
+        by = {p.get("designation"): p for p in row.get("prices") or []}
+        over, under = by.get("over"), by.get("under")
+        if not over or not under or over.get("points") is None:
+            continue
+        dv = _devig_two(over.get("price"), under.get("price"))
+        if dv is None:
+            continue
+        out[float(over["points"])] = (round(dv[0], 6), round(dv[1], 6))
+    return out
